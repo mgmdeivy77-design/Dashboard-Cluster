@@ -1,0 +1,6 @@
+{
+  "name": "Dashboard Cluster",
+  "description": "Un dashboard completo y colaborativo para el seguimiento de tareas y eventos con vista Kanban, calendario mensual interactivo, gráfico de estadísticas y soporte para múltiples usuarios, temas claro/oscuro y persistencia en localStorage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
