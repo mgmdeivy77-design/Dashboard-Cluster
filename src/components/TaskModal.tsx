@@ -39,10 +39,30 @@ export function TaskModal({
   const [assigneeId, setAssigneeId] = useState('');
   const [category, setCategory] = useState('General');
   const [dueDate, setDueDate] = useState('');
+  const [recurrence, setRecurrence] = useState<'ninguna' | 'diaria' | 'semanal' | 'mensual'>('ninguna');
   const [errorMsg, setErrorMsg] = useState('');
+  const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [isGroupTask, setIsGroupTask] = useState(false);
 
   const currentUserObj = users.find((u) => u.id === currentUserId);
-  const isAdmin = currentUserObj?.role === 'admin';
+  const isAdmin = currentUserObj?.role === 'admin' || currentUserObj?.role === 'supervisor' || currentUserObj?.role === 'pastor';
+
+  const assignmentUsers = users.filter((u) => {
+    if (!currentUserObj) return true;
+    if (currentUserObj.role === 'admin') return true;
+    if (currentUserObj.role === 'pastor') {
+      const getCdiNum = (n: string) => n.match(/CDI-(\d+)/)?.[1] || '';
+      const currentCdi = getCdiNum(currentUserObj.name);
+      return getCdiNum(u.name) === currentCdi || u.id === currentUserId;
+    }
+    if (currentUserObj.role === 'supervisor') {
+      const getCdiNum = (n: string) => n.match(/CDI-(\d+)/)?.[1] || '';
+      const currentCdi = getCdiNum(currentUserObj.name);
+      return getCdiNum(u.name) === currentCdi || u.id === currentUserId || u.supervisorId === currentUserId;
+    }
+    return u.id === currentUserId;
+  });
 
   // Mass assignment states
   const [isMassAssignMode, setIsMassAssignMode] = useState(false);
@@ -57,6 +77,10 @@ export function TaskModal({
       setStatus(editTask.status || 'Pendiente');
       setCategory(editTask.category || 'General');
       setDueDate(editTask.dueDate || '');
+      setRecurrence(editTask.recurrence || 'ninguna');
+      setSubtasks(editTask.subtasks || []);
+      setNewSubtaskTitle('');
+      setIsGroupTask(!!editTask.isGroupTask);
 
       if (!isAdmin) {
         setIsMassAssignMode(false);
@@ -84,13 +108,45 @@ export function TaskModal({
       setCategory('General');
       const fallbackDate = initialSelectedDate || new Date().toISOString().split('T')[0];
       setDueDate(fallbackDate);
+      setRecurrence('ninguna');
       setIsMassAssignMode(false);
       setSelectedAssigneeIds([currentUserId || (users[0]?.id || '')]);
+      setSubtasks([]);
+      setNewSubtaskTitle('');
+      setIsGroupTask(false);
     }
     setErrorMsg('');
   }, [editTask, isOpen, currentUserId, users, initialSelectedDate, isAdmin]);
 
   if (!isOpen) return null;
+
+  const handleAddSubtask = () => {
+    if (!newSubtaskTitle.trim()) return;
+    const newSt = {
+      id: `st-${Math.random().toString(36).substr(2, 9)}`,
+      title: newSubtaskTitle.trim(),
+      completed: false
+    };
+    setSubtasks((prev) => [...prev, newSt]);
+    setNewSubtaskTitle('');
+  };
+
+  const handleToggleSubtask = (stId: string) => {
+    setSubtasks((prev) => {
+      const updated = prev.map((s) => (s.id === stId ? { ...s, completed: !s.completed } : s));
+      const allCompleted = updated.length > 0 && updated.every((s) => s.completed);
+      if (allCompleted && status !== 'Completada') {
+        setStatus('Completada');
+      } else if (!allCompleted && status === 'Completada') {
+        setStatus('En Progreso');
+      }
+      return updated;
+    });
+  };
+
+  const handleRemoveSubtask = (stId: string) => {
+    setSubtasks((prev) => prev.filter((s) => s.id !== stId));
+  };
 
   const handleToggleUserSelection = (userId: string) => {
     setSelectedAssigneeIds((prev) => {
@@ -105,7 +161,7 @@ export function TaskModal({
   };
 
   const handleSelectAllUsers = () => {
-    setSelectedAssigneeIds(users.map((u) => u.id));
+    setSelectedAssigneeIds(assignmentUsers.map((u) => u.id));
   };
 
   const handleSelectNoUsers = () => {
@@ -148,9 +204,12 @@ export function TaskModal({
       assigneeId: finalAssigneeId,
       assigneeIds: finalAssigneeIds,
       isMassAssignment: isMassAssignMode || finalAssigneeIds.length > 1,
+      isGroupTask,
       creatorId: editTask ? editTask.creatorId : currentUserId,
       category: category.trim(),
       dueDate,
+      subtasks,
+      recurrence,
     });
     onClose();
   };
@@ -274,7 +333,7 @@ export function TaskModal({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-blue-500"
               >
                 <option value="Pendiente">⏳ Pendiente</option>
                 <option value="En Progreso">🚀 En Progreso</option>
@@ -298,6 +357,23 @@ export function TaskModal({
                   maxLength={25}
                 />
               </div>
+            </div>
+
+            {/* Recurrence Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Recurrencia de Tarea
+              </label>
+              <select
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value as any)}
+                className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-blue-500"
+              >
+                <option value="ninguna">No se repite (Única vez)</option>
+                <option value="diaria">⏳ Repetir diariamente</option>
+                <option value="semanal">🔄 Repetir semanalmente</option>
+                <option value="mensual">📅 Repetir mensualmente</option>
+              </select>
             </div>
           </div>
 
@@ -364,9 +440,9 @@ export function TaskModal({
                       onChange={(e) => setAssigneeId(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-hidden focus:border-blue-500"
                     >
-                      {users.map((u) => (
+                      {assignmentUsers.map((u) => (
                         <option key={u.id} value={u.id}>
-                          {u.name} {u.role === 'admin' ? '(Admin)' : ''}
+                          {u.name} {u.role === 'admin' ? '(Admin)' : u.role === 'pastor' ? '(Pastor)' : u.role === 'supervisor' ? '(Supervisor)' : ''}
                         </option>
                       ))}
                     </select>
@@ -395,7 +471,7 @@ export function TaskModal({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
-                      {users.map((usr) => {
+                      {assignmentUsers.map((usr) => {
                         const isChecked = selectedAssigneeIds.includes(usr.id);
                         return (
                           <button
@@ -452,6 +528,75 @@ export function TaskModal({
                 </p>
               </div>
             )}
+
+            {/* SUBTASKS/CHECKLIST SECTION */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-850">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                Subtareas / Checklist ({subtasks.filter(s => s.completed).length}/{subtasks.length})
+              </label>
+
+              {/* Subtask Input */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  placeholder="Agregar subtarea... (Ej: Revisar documentación)"
+                  className="flex-1 bg-slate-50 dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSubtask();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSubtask}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-250 dark:border-slate-700 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                >
+                  Añadir
+                </button>
+              </div>
+
+              {/* Subtask List */}
+              {subtasks.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic">No hay subtareas añadidas todavía.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
+                  {subtasks.map((st) => (
+                    <div 
+                      key={st.id} 
+                      className="flex items-center justify-between gap-2 p-2 bg-slate-50 dark:bg-slate-955/20 border border-slate-150 dark:border-slate-850/60 rounded-xl"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSubtask(st.id)}
+                        className="flex items-center gap-2 text-left min-w-0 flex-1 cursor-pointer"
+                      >
+                        {st.completed ? (
+                          <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-300 dark:text-slate-700 shrink-0" />
+                        )}
+                        <span className={`text-xs font-semibold truncate ${st.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-750 dark:text-slate-300'}`}>
+                          {st.title}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubtask(st.id)}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                        title="Eliminar Subtarea"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </form>
 

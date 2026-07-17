@@ -26,6 +26,7 @@ export function EventModal({
   const [time, setTime] = useState('');
   const [description, setDescription] = useState('');
   const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [recurrence, setRecurrence] = useState<'ninguna' | 'diaria' | 'semanal' | 'mensual'>('ninguna');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -35,12 +36,14 @@ export function EventModal({
       setTime(editEvent.time || '09:00');
       setDescription(editEvent.description || '');
       setParticipantIds(editEvent.participantIds || []);
+      setRecurrence(editEvent.recurrence || 'ninguna');
     } else {
       setTitle('');
       setDate(defaultDate || new Date().toISOString().split('T')[0]);
       setTime('09:00');
       setDescription('');
       setParticipantIds([currentUserId]); // Default to creator being participant
+      setRecurrence('ninguna');
     }
     setErrorMsg('');
   }, [editEvent, isOpen, currentUserId, defaultDate]);
@@ -78,6 +81,7 @@ export function EventModal({
       description: description.trim(),
       participantIds,
       creatorId: editEvent ? editEvent.creatorId : currentUserId,
+      recurrence,
     });
     onClose();
   };
@@ -188,6 +192,26 @@ export function EventModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Recurrence Selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              ¿Es un evento recurrente? (Repetir automáticamente)
+            </label>
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as any)}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-750 dark:text-slate-300 focus:outline-hidden focus:border-blue-500"
+            >
+              <option value="ninguna">No se repite (Hito único)</option>
+              <option value="diaria">Repetir diariamente</option>
+              <option value="semanal">Repetir semanalmente (Mismo día de la semana)</option>
+              <option value="mensual">Repetir mensualmente (Mismo día del mes)</option>
+            </select>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-medium leading-relaxed">
+              Los eventos recurrentes aparecerán automáticamente en el calendario para todas las fechas futuras que cumplan con la condición.
+            </span>
           </div>
 
           {/* Participantes checklist */}

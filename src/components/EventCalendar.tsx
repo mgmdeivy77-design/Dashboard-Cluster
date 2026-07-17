@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Event, User } from '../types';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Plus, Edit2, Trash2, Tag, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Plus, Edit2, Trash2, Tag, Info, Repeat } from 'lucide-react';
 
 interface EventCalendarProps {
   events: Event[];
@@ -97,9 +97,31 @@ export function EventCalendar({ events, users, currentUserId, onAddEvent, onEdit
     return `${year}-${mm}-${dd}`;
   };
 
-  // Get events on a target date
+  // Get events on a target date (including recurrence mapping)
   const getEventsForDate = (dateString: string) => {
-    return events.filter((e) => e.date === dateString);
+    return events.filter((e) => {
+      if (e.date === dateString) return true;
+      if (!e.recurrence || e.recurrence === 'ninguna') return false;
+      if (dateString < e.date) return false;
+
+      try {
+        const eventD = new Date(e.date + 'T00:00:00');
+        const targetD = new Date(dateString + 'T00:00:00');
+
+        if (e.recurrence === 'diaria') {
+          return true;
+        }
+        if (e.recurrence === 'semanal') {
+          return eventD.getDay() === targetD.getDay();
+        }
+        if (e.recurrence === 'mensual') {
+          return eventD.getDate() === targetD.getDate();
+        }
+      } catch (err) {
+        return false;
+      }
+      return false;
+    });
   };
 
   const selectedDateEvents = getEventsForDate(selectedDateStr);
@@ -326,8 +348,14 @@ export function EventCalendar({ events, users, currentUserId, onAddEvent, onEdit
                     className="bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-850 p-4 rounded-xl shadow-xs border-l-4 border-l-blue-500 hover:shadow-xs transition-shadow"
                   >
                     <div className="flex justify-between items-start gap-2 mb-2">
-                      <h5 className="text-xs font-bold text-slate-850 dark:text-slate-100">
-                        {event.title}
+                      <h5 className="text-xs font-bold text-slate-850 dark:text-slate-100 flex flex-col gap-1 items-start">
+                        <span>{event.title}</span>
+                        {event.recurrence && event.recurrence !== 'ninguna' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-55 dark:text-indigo-300 dark:bg-indigo-950/40 border border-indigo-200/40 rounded-sm uppercase tracking-widest mt-0.5">
+                            <Repeat className="w-2.5 h-2.5 shrink-0" />
+                            <span>Recurrente ({event.recurrence})</span>
+                          </span>
+                        )}
                       </h5>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
